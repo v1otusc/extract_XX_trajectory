@@ -1,0 +1,5 @@
+[source file]: sample.txt
+[destination file]: sample_long_lat.txt
+[Extracted fields]:LANGTITUDE  LATITUDE
+[OK] Total 31853 records are written!
+[OK] Boundary:['194079', 0.0, '194079', 0.0, '431181', 117.2687836, '403287', 41.6235924]
