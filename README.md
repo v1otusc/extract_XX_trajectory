@@ -1,4 +1,8 @@
-生成的文件包括：
+## 预处理轨迹
+
+[基本思路说明](https://github.com/v1otusc/extract_XX_trajectory/blob/master/%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B%E4%B8%8E%E5%A4%84%E7%90%86%E7%BB%93%E6%9E%9C%E8%AF%B4%E6%98%8E)
+
+## 生成的文件包括：
 
 1. ××××××××××××××_long_lat.txt: 过滤静止点和插值后的GPS经纬度
 
