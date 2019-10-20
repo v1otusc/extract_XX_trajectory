@@ -1,5 +1,5 @@
-#ifndef __NOTIFY_H__
-#define __NOTIFY_H__
+#ifndef NOTIFY_H
+#define NOTIFY_H
 
 #include <iostream>
 #include <string>
