@@ -65,19 +65,81 @@ const unsigned int SELECT_VESSEL_TYPE[] = {
 /*----------------------------------------------------------------------------------------------
  transfer time in excel to second
   eg:
->>> time_2_second("2017-01-01T01:52:14")
+>>> time2second("2017-01-01T01:52:14")
      1483253534
->>> time_2_second("2017-01-01T01:52:15")
+>>> time2second("2017-01-01T01:52:15")
      1483253535
->>> time_2_second("2017-01-01T01:52:16")
+>>> time2second("2017-01-01T01:52:16")
      1483253536
->>> time_2_second("2017-01-01T02:52:16")
+>>> time2second("2017-01-01T02:52:16")
      1483257136
 */
-//FIXME: C++时间格式转换研究一下
+// long int
+inline time_t time2second(const string& time_str_in_excel)
+{
+	// 将string转换为char
+	char *cha = (char*)time_str_in_excel.data(); 
+	// 定义tm结构体
+	tm _tm;
+	// 定义时间的各个int临时变量
+	int year, month, day, hour, minute, second;
+	// 将string存储的日期时间，转换为int临时变量
+	sscanf(cha, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);	
+	_tm.tm_year  = year - 1900;                 // 年，由于tm结构体存储的是从1900年开始的时间，所以tm_year为int临时变量减去1900
+    _tm.tm_mon   = month--;                     // 月，由于tm结构体的月份存储范围为0-11，所以tm_mon为int临时变量减去1
+    _tm.tm_mday  = day;                         // 日
+    _tm.tm_hour  = hour;                        // 时
+    _tm.tm_min   = minute;                      // 分
+    _tm.tm_sec   = second;                      // 秒
+    _tm.tm_isdst = 0;                           // 非夏令时
 
+	time_t _t = mktime(&_tm);
 
-string status2string(int vessel_state_int_value)
+	return _t;
+}
+
+inline string second2time(const time_t& time_in_second)
+{
+	// 将time_t格式转换为tm结构体
+	tm *tm_ = localtime(&time_in_second);
+	// 定义时间的各个int临时变量
+	int year, month, day, hour, minute, second;
+	year = tm_->tm_year + 1900;                 // 临时变量，年，由于tm结构体存储的是从1900年开始的时间，所以临时变量int为tm_year加上1900
+    month = tm_->tm_mon + 1;                    // 临时变量，月，由于tm结构体的月份存储范围为0-11，所以临时变量int为tm_mon加上1
+    day = tm_->tm_mday;                         // 临时变量，日
+    hour = tm_->tm_hour;                        // 临时变量，时
+    minute = tm_->tm_min;                       // 临时变量，分
+    second = tm_->tm_sec;                       // 临时变量，秒
+	// 定义时间的各个char*变量
+	char yearStr[5], monthStr[3], dayStr[3], hourStr[3], minuteStr[3], secondStr[3];
+	sprintf(yearStr, "%d", year);               // 年
+    sprintf(monthStr, "%d", month);             // 月
+    sprintf(dayStr, "%d", day);                 // 日
+    sprintf(hourStr, "%d", hour);               // 时
+    sprintf(minuteStr, "%d", minute);           // 分
+	// 如果分为一位，如5，则需要转换字符串为两位，如05
+	if (minuteStr[1] == '\0')                  
+    {
+        minuteStr[2] = '\0';
+        minuteStr[1] = minuteStr[0];
+        minuteStr[0] = '0';
+    }
+	// 如果秒为一位，如5，则需要转换字符串为两位，如05
+	if (secondStr[1] == '\0')
+	{
+		secondStr[2] = '\0';
+		secondStr[1] = minuteStr[0];
+		secondStr[0] = '0';
+	}
+	// 定义总日期时间变量
+	char s[20];
+	// 将年月日时分秒合并
+	sprintf(s, "%s-%s-%sT%s:%s:%s", yearStr, monthStr, dayStr, hourStr, minuteStr, secondStr);
+	string str_time(s);
+	return str_time;
+}
+
+string status2string(const int vessel_state_int_value)
 {
 	if (VESSEL_RUN == vessel_state_int_value)
 		return "running";
@@ -271,11 +333,33 @@ public:
 	//VesselPos();
 	~VesselPos();
 
+	VesselPos* create_instance(string&, MBR&);
+	string to_string(VesselPos&);
+	int get_running_state(string&);
 
-public:
+protected:
 	int MMSI;
-	
+	time_t time_second;
+	float longti;
+	float lanti;
+	int status;
+	int timediff = 0;
 };
+
+VesselPos* VesselPos::create_instance(string& line_in_excel, MBR& mbr_boundary)
+{
+	
+}
+
+string VesselPos::to_string(VesselPos&)
+{
+
+}
+
+int VesselPos::get_running_state(string&)
+{
+
+}
 
 /*-------------------------------------------------------------------------
   we use hash map data structure to organize data
@@ -295,6 +379,11 @@ public:
 	const int FSM_STATE_VESSEL_STOP = 0;
 	const int FSM_STATE_VESSEL_RUNNING = 1;
 
+
+protected:
+	// hash map
+	// map data_map = ;
+	int fsm;
 	
 };
 
