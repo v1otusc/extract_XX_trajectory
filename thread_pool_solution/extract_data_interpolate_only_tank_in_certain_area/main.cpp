@@ -10,11 +10,14 @@
 #include <map>
 #include <algorithm>
 
+//---------------
+/*实现对string类型的分割*/
+#include "sstrip.h"
 /*计时*/
 #include "Timer.h"
 /*定时汇报消息*/
 #include "notify.h"
-
+//---------------
 #if defined(linux) || defined(__linux) || defined(__linux__)
     //CPU core
 	#include <sys/sysinfo.h>
@@ -230,7 +233,7 @@ class MBR
 {
 public:
 	// 删除默认构造函数
-	MBR() = delete;
+	MBR();
 	MBR(const float* b): boundary{b[min_longti], b[min_lanti],
 								  b[max_longti], b[max_lanti]} {}
 	~MBR();
@@ -246,6 +249,7 @@ protected:
 	float boundary[4];
 };
 
+MBR::MBR() {}
 MBR::~MBR() {}
 
 void MBR::set(float b[])
@@ -330,13 +334,14 @@ class VesselPos
         - if in the given area and is the specified vessel type, generate an instance
         - otherwise None is returned!
 ......................................................................................................................*/	
+//  Non_number function
+	VesselPos* create_instance(string&, MBR&);
 public:
 	// 删除默认构造函数
 	VesselPos() = delete;
 	VesselPos(int, time_t, float, float, int, int);
 	~VesselPos();
-
-	VesselPos* create_instance(string&, MBR&);
+	
 	string to_res(VesselPos&);
 	int get_running_state(string&);
 	// we just ouput longitude, latitude
@@ -367,11 +372,14 @@ VesselPos::VesselPos(int _MMSI,
 }
 
 // 原始数据转换
-VesselPos* VesselPos::create_instance(string& line_in_excel, 
+VesselPos* create_instance(string& line_in_excel, 
 									  MBR& mbr_boundary)
 {
+	// python rstrip()实现
+	string line = rstrip(line_in_excel);
+	vector<string> data;
 	
-	return VesselPos();
+	return ;
 }
 
 string VesselPos::to_res(VesselPos&)
@@ -389,7 +397,7 @@ string VesselPos::to_res(VesselPos&)
 
 int VesselPos::get_running_state(string& s)
 {
-	// 不使用count(), 提高查找效率
+	// 注意不使用count(), 提高查找效率
 	map<string, int>::iterator iter;
 	iter = vessel_running_dictionary.find(s);
 	if (iter == vessel_running_dictionary.end())
@@ -417,14 +425,29 @@ public:
 	const int FSM_STATE_VESSEL_RUNNING = 1;
 
 public: 
+	// 
 	bool push();
+	// 
+	void filter_and_replace_positions();
+	//
+	void interpolate_and_output();
+	//
+	void _sort();
+	//
+	void dump();
+	//
+	void interpolate();
 
 protected:
 	// hash map
 	// map data_map = ;
-	int fsm;
+	int fsm = FSM_STATE_VESSEL_RUNNING;
+	MBR mbr;
+	map<int, vector<string*>> data_map;
 	
 };
+
+
 
 class TreadPool
 {
@@ -549,7 +572,7 @@ int main(int argc, char const *argv[])
 	if(argc == 6)
 	{
 		float _mbr[4];
-		// TODO: 遗憾的是 atof() 只能转换为double
+		// TODO: 遗憾的是 atof() 只能转换为double, 只能用模板实现吗?
 		_mbr[0] = atof(argv[2]);
 		_mbr[1] = atof(argv[3]);
 		_mbr[2] = atof(argv[4]);
