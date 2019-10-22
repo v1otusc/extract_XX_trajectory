@@ -139,7 +139,7 @@ inline string second2time(const time_t& time_in_second)
 	return str_time;
 }
 
-string status2string(const int vessel_state_int_value)
+inline string status2string(const int vessel_state_int_value)
 {
 	if (VESSEL_RUN == vessel_state_int_value)
 		return "running";
@@ -224,13 +224,15 @@ map<string, int> vessel_running_dictionary = {
 	{"power-driven vessel pushing ahead or towing alongside", VESSEL_STOP}
 };
 
+
+
 class MBR
 {
 public:
 	// 删除默认构造函数
 	MBR() = delete;
-	MBR(const float* b): boundary{*(b+min_longti), *(b+min_lanti),
-								   *(b+max_longti), *(b+max_lanti)} {}
+	MBR(const float* b): boundary{b[min_longti], b[min_lanti],
+								  b[max_longti], b[max_lanti]} {}
 	~MBR();
 
 protected:
@@ -246,10 +248,10 @@ protected:
 
 MBR::~MBR() {}
 
-void MBR::set(float *b)
+void MBR::set(float b[])
 {
 	for(unsigned int i = 0; i < 4; ++i)
-		boundary[i] = *(b+i);
+		boundary[i] = b[i];
 }
 
 void MBR::update(float longti, float lanti)
@@ -329,13 +331,16 @@ class VesselPos
         - otherwise None is returned!
 ......................................................................................................................*/	
 public:
+	// 删除默认构造函数
 	VesselPos() = delete;
-	//VesselPos();
+	VesselPos(int, time_t, float, float, int, int);
 	~VesselPos();
 
 	VesselPos* create_instance(string&, MBR&);
-	string to_string(VesselPos&);
+	string to_res(VesselPos&);
 	int get_running_state(string&);
+	// we just ouput longitude, latitude
+	
 
 protected:
 	int MMSI;
@@ -343,22 +348,54 @@ protected:
 	float longti;
 	float lanti;
 	int status;
-	int timediff = 0;
+	int time_diff = 0;
 };
 
-VesselPos* VesselPos::create_instance(string& line_in_excel, MBR& mbr_boundary)
+VesselPos::VesselPos(int _MMSI, 
+					 time_t _time_second, 
+					 float _longti, 
+					 float _lanti, 
+					 int _status, 
+					 int _time_diff)
+{
+	MMSI = _MMSI;
+	time_second = _time_second;
+	longti = _longti;
+	lanti = _lanti;
+	status = _status;
+	time_diff = _time_diff;
+}
+
+// 原始数据转换
+VesselPos* VesselPos::create_instance(string& line_in_excel, 
+									  MBR& mbr_boundary)
 {
 	
+	return VesselPos();
 }
 
-string VesselPos::to_string(VesselPos&)
+string VesselPos::to_res(VesselPos&)
 {
-
+	//char* ouput_line;
+	string res;
+	res = to_string(MMSI) + "," + to_string(longti)
+						  + "," + to_string(lanti)
+						  + "," + second2time(time_second)
+						  + "," + status2string(status)
+						  + "," + to_string(time_diff);
+	// 换行符单独写 测试一下
+	res.append("\n");
 }
 
-int VesselPos::get_running_state(string&)
+int VesselPos::get_running_state(string& s)
 {
-
+	// 不使用count(), 提高查找效率
+	map<string, int>::iterator iter;
+	iter = vessel_running_dictionary.find(s);
+	if (iter == vessel_running_dictionary.end())
+		return VESSEL_RUN;
+	else
+		return iter->second;
 }
 
 /*-------------------------------------------------------------------------
@@ -379,11 +416,18 @@ public:
 	const int FSM_STATE_VESSEL_STOP = 0;
 	const int FSM_STATE_VESSEL_RUNNING = 1;
 
+public: 
+	bool push();
 
 protected:
 	// hash map
 	// map data_map = ;
 	int fsm;
+	
+};
+
+class TreadPool
+{
 	
 };
 
@@ -503,12 +547,22 @@ int main(int argc, char const *argv[])
 		string output_xy_file_debug2 = output_xy_file + "long_lat_debug2.txt";
 
 	if(argc == 6)
-		// 使用用户设置的提取区域范围
-		MBR user_cut(float(argv[2]));
+	{
+		float _mbr[4];
+		// TODO: 遗憾的是 atof() 只能转换为double
+		_mbr[0] = atof(argv[2]);
+		_mbr[1] = atof(argv[3]);
+		_mbr[2] = atof(argv[4]);
+		_mbr[3] = atof(argv[5]);
+
+		MBR user_cut_mbr(_mbr);
+	}
 
 	cout << "Now open" << output_xy_file << "for writing final results" << endl;
 
- 	if (!extract_data(input_longtilanti_file, static_cast<const char*>(output_xy_file.c_str())))
+ 	if (!extract_data(input_longtilanti_file, 
+	 				  static_cast<const char*>(output_xy_file.c_str())
+					   ))
 	{
 		cout << "[ERROR] Failed to extract data ..." << endl;
 	} 
