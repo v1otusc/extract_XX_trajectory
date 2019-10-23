@@ -62,6 +62,8 @@ const vector<unsigned int> SELECT_VESSEL_TYPE = {
 // vessel running state ...
 #define VESSEL_RUN 1
 #define VESSEL_STOP 0
+// max legal time diffrence
+#define MAX_TIME_DIFFRENCE 360
 
 /*----------------------------------------------------------------------------------------------
 APIs for string strip and split 
@@ -579,14 +581,14 @@ public:
     //                          because we do not know when 
 	void filter_and_replace_positions();
 
-	void interpolate_and_output();
+	void interpolate_and_output(ostream&);
 
 	// debug code to check whether is really sorted!!!    
 	void dump();
 
 protected:
 	// to interpolate points, do NOT call it outside the class!!!
-	void interpolate();
+	void _interpolate();
 
 	// -- sort every vector, do NOT call it outside the class ------------
 	void _sort();
@@ -596,6 +598,7 @@ protected:
 	int fsm = FSM_STATE_VESSEL_RUNNING;
 	MBR mbr;
 	map<int, vector<VesselPos>> data_map;
+	int interpolated_points_num = 0;
 };
 
 bool RecordTree::push(string& excel_vessel_pos_record_line, MBR& mbr)
@@ -616,21 +619,87 @@ void RecordTree::filter_and_replace_positions()
 {
 	cout << "[Debug] starting filter useless positioning data ..." << endl;
 	map<int, vector<VesselPos>>::iterator iter = data_map.begin();
-	for(iter; iter != data_map.end(); iter++)
+	for(; iter != data_map.end(); iter++)
 	{
-		vector<string> new_list;
-		//iter->second= 
+		vector<VesselPos> new_list;
 		int _size = data_map[iter->first].size();
+		vector<VesselPos> pos_vector = iter->second;
+		if(_size > 0)
+			new_list.push_back(pos_vector[0]);	
+		for (size_t i = 1; i < _size; i++)
+		{
+			mbr.update(pos_vector[i].longti, pos_vector[i].lanti);
+			// 上一个点静止
+			if (fsm == FSM_STATE_VESSEL_STOP)
+			{
+				// 点静止
+				if (pos_vector[i].status == FSM_STATE_VESSEL_STOP)
+					// discard this point, two connected stop points
+					continue;
+				else
+				// 点运动，keep it, need do nothing
+				{
+					pos_vector[i].time_diff = int((pos_vector[i].time_second - pos_vector[i - 1].time_second) / 2);
+					new_list.push_back(pos_vector[i]);
+					fsm = FSM_STATE_VESSEL_RUNNING;
+				}
+
+			}
+			// 上一个点运动
+			else if(fsm == FSM_STATE_VESSEL_RUNNING)
+			{
+				// 点静止
+				if (pos_vector[i].status == FSM_STATE_VESSEL_STOP)
+				{
+					fsm = FSM_STATE_VESSEL_STOP;
+					pos_vector[i].time_diff = int((pos_vector[i].time_second - pos_vector[i - 1].time_second) / 2);
+				}
+				
+				else
+				// 点运动
+				{
+					pos_vector[i].time_diff = pos_vector[i].time_second - pos_vector[i - 1].time_second;
+				}
+				new_list.push_back(pos_vector[i]);
+			}
+			else
+				cout << "[Error] Never should be here! Bad logic!" << endl;
+		}
+		
+		pos_vector.clear();
+		iter->second = new_list;
 	}
+	cout << "[Debug] Finish filtering data" << endl;
 }
 
-void RecordTree::interpolate_and_output()
+void RecordTree::interpolate_and_output(ostream& ouputfile)
 {
+	cout << "[Debug] starting to interpolate positioning data and save to file ..." << endl;
+	interpolated_points_num = 0;
+	map<int, vector<VesselPos> >::iterator iter = data_map.begin();
+	for(; iter != data_map.end(); iter++)
+	{
+		vector<VesselPos> pos_vector = iter->second;
+		int iall = pos_vector.size();
+		for (size_t i = 0; i < iall; i++)
+		{
+			if (iall > 0)
+			{
 
+			}
+			if (pos_vector[i].time_diff < 0)
+				cout << "" << endl;
+			// 写入文件
+
+		}
+	}
 }
 
 void RecordTree::_sort()
 {
+	Process_notify notify(5);
+	cout << "Now sorting" << endl;
+	int iall = data_map.size();
 	
 }
 
