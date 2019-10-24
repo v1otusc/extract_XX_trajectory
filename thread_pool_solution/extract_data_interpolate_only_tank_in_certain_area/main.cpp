@@ -581,10 +581,10 @@ public:
     //                          because we do not know when 
 	void filter_and_replace_positions();
 
-	void interpolate_and_output(ostream&);
+	void interpolate_and_output(const char* ouput_file);
 
 	// debug code to check whether is really sorted!!!    
-	void dump();
+	void dump(const char* fout);
 
 protected:
 	// to interpolate points, do NOT call it outside the class!!!
@@ -592,6 +592,8 @@ protected:
 
 	// -- sort every vector, do NOT call it outside the class ------------
 	void _sort();
+
+	bool compare_key(VesselPos&, VesselPos&);
 
 protected:
 	// hash map
@@ -672,11 +674,18 @@ void RecordTree::filter_and_replace_positions()
 	cout << "[Debug] Finish filtering data" << endl;
 }
 
-void RecordTree::interpolate_and_output(ostream& ouputfile)
+void RecordTree::interpolate_and_output(const char* output_file)
 {
 	cout << "[Debug] starting to interpolate positioning data and save to file ..." << endl;
 	interpolated_points_num = 0;
 	map<int, vector<VesselPos> >::iterator iter = data_map.begin();
+	ofstream os(output_file);
+	if (!os.is_open())
+	{
+		cerr << "[Error] fail to open file and interpolate ..." << endl;
+		return;
+	}
+
 	for(; iter != data_map.end(); iter++)
 	{
 		vector<VesselPos> pos_vector = iter->second;
@@ -685,14 +694,42 @@ void RecordTree::interpolate_and_output(ostream& ouputfile)
 		{
 			if (iall > 0)
 			{
-
+				float dx, dy;
+				dx = pos_vector[i].longti - pos_vector[i - 1].longti;
+				dy = pos_vector[i].lanti - pos_vector[i - 1].lanti;
+				int d_t = pos_vector[i].time_diff;
+				
+				if(d_t < MAX_TIME_DIFFRENCE && d_t >= 1)
+				// interplote
+				{
+					for(size_t j = 1; j < d_t; j++)
+					{
+						float x = pos_vector[i-1].longti + dx * j / d_t;
+						float y = pos_vector[i-1].lanti  + dy * j / d_t;
+					
+						os << to_string(x) << "," << to_string(y) << endl;
+					}
+					interpolated_points_num += d_t - 1;
+				}
 			}
+		
 			if (pos_vector[i].time_diff < 0)
-				cout << "" << endl;
-			// 写入文件
-
+			{
+				cerr << "[Error] time_diff = " << interpolated_points_num << ", i=" << i <<  endl;
+				return;
+			}
+			// whatever which i, always write it to file;
+			os << to_string(pos_vector[i].longti) << to_string(pos_vector[i].lanti) << endl;
 		}
 	}
+	os.close();
+	return;
+}
+
+bool RecordTree::compare_key(VesselPos& p1, VesselPos& p2)
+{
+	// 升序排列
+	return p1.time_second < p2.time_second;
 }
 
 void RecordTree::_sort()
@@ -700,22 +737,60 @@ void RecordTree::_sort()
 	Process_notify notify(5);
 	cout << "Now sorting" << endl;
 	int iall = data_map.size();
+	int i = 0;
+	map<int, vector<VesselPos>>::iterator iter = data_map.begin();
 	
+	for(; iter!=data_map.end(); iter++)
+	{
+		vector<VesselPos> pos_vector = iter->second;
+		sort(pos_vector.begin(), pos_vector.end(), compare_key); 
+		// 进度条
+		notify.push(i*100 / iall, "sorted");
+	}
+	return;
 }
 
+// debug code
+void RecordTree::dump(const char* fout)
+{
+	ofstream os(fout);
+	
+	if (!os.is_open())
+	{
+		cerr << "[Error] Bug when execute dump function ..." << endl;
+		return;
+	}
+	map<int, vector<VesselPos>>::iterator iter = data_map.begin();
+	
 
+	for (; iter!=data_map.end(); iter++)
+	{
+		vector<VesselPos> pos_vector = iter->second;
+		vector<VesselPos>::iterator it = pos_vector.begin();
+		
+		for(; it!=pos_vector.end(); it++)
+		{
+			os << to_string(it->MMSI)
+			   << to_string(it->time_second)
+			   << to_string(it->longti)
+			   << to_string(it->lanti)
+			   << to_string(it->status)
+			   << endl;
+		}
+	}
+}
 
 class TreadPool
 {
 };
 
 bool extract_data(const char *input_file,
-				  const char *output_file
+				  const char *output_file,
+				  MBR& user_cut_mbr
 				  //TODO: add some parameters to...
 )
 {
 	const char *separater = ", \t";
-
 	ifstream is(input_file);
 	ofstream os(output_file);
 
@@ -741,6 +816,7 @@ bool extract_data(const char *input_file,
 	double longitude, latitude;
 
 	vector<std::string> ps;
+	// 分配足够的空间
 	ps.reserve(iall_record * 1.2);
 
 	// 1. try to estimate positioning data number
@@ -758,17 +834,25 @@ bool extract_data(const char *input_file,
 	}
 
 	// 2. generate record using each lines' information
+	RecordTree vessel_hash_table;
+	vector<string>::iterator iter = ps.begin();
+	for(; iter != ps.end(); iter++)
+	{
+		
+	}
 
 	// n. write to file
 	_i = 0;
 	// TODO: ensure which step？
 	cout << "[n] Now write to file ..." << endl;
+	Process_notify notify1(5);
+	int _i1(0);
 	os << std::fixed << setprecision(2);
 	for (auto &line : ps)
 	{
 		os << line << endl;
-		++_i;
-		notify0.push(_i * 100 / iall_record, "      Progress of Writing");
+		++_i1;
+		notify1.push(_i1 * 100 / iall_record, "      Progress of Writing");
 	}
 
 	is.close();
@@ -795,10 +879,8 @@ void help(const char **argv)
 
 int main(int argc, char const *argv[])
 {
-	cout << "========== Extract data interpolate ONLY TANK in certain area ==========" << endl;
-
-	bool FILEOUT_DEBUG1 = true;
-	bool FILEOUT_DEBUG2 = true;
+	// bool FILEOUT_DEBUG1 = true;
+	// bool FILEOUT_DEBUG2 = true;
 
 	if (argc != 2 || argc != 6)
 	{
@@ -817,15 +899,15 @@ int main(int argc, char const *argv[])
 	// 设置一些输出文件的名称
 	output_xy_file += "_long_lat.csv";
 	output_xy_desc_file += output_xy_file + "_long_lat_MBR.txt";
-	if (FILEOUT_DEBUG1)
-		string output_xy_file_debug1 = output_xy_file + "long_lat_debug1.txt";
-	if (FILEOUT_DEBUG2)
-		string output_xy_file_debug2 = output_xy_file + "long_lat_debug2.txt";
+
+	// 改为不提供选项，两个debug文件都会生成
+	string output_xy_file_debug1 = output_xy_file + "long_lat_debug1.txt";
+	string output_xy_file_debug2 = output_xy_file + "long_lat_debug2.txt";
 
 	if (argc == 6)
 	{
 		float _mbr[4];
-		// TODO: 遗憾的是 atof() 只能转换为double, 只能用模板实现吗?
+		// TODO: 将double转换为float时会出现精度缺失问题
 		_mbr[0] = atof(argv[2]);
 		_mbr[1] = atof(argv[3]);
 		_mbr[2] = atof(argv[4]);
@@ -837,10 +919,13 @@ int main(int argc, char const *argv[])
 	cout << "Now open" << output_xy_file << "for writing final results" << endl;
 
 	if (!extract_data(input_longtilanti_file,
-					  static_cast<const char *>(output_xy_file.c_str())))
+					  static_cast<const char *>(output_xy_file.c_str(),
+					  )))
 	{
-		cout << "[ERROR] Failed to extract data ..." << endl;
+		cerr << "[ERROR] Failed to extract data ..." << endl;
+		return -1;
 	}
+
 	else
 	{
 		cout << "[OK] Successfully tranferred to file " << output_xy_file << endl;
