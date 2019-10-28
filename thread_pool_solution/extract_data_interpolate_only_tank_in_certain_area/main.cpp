@@ -154,24 +154,24 @@ std::string do_strip(const std::string &str,
 }
 
 std::string strip(const std::string &str,
-				  const std::string &chars = " ")
+				  const std::string &chars)
 {
 	return do_strip(str, 2, chars);
 }
 
 std::string lstrip(const std::string &str,
-				   const std::string &chars = " ")
+				   const std::string &chars)
 {
 	return do_strip(str, 0, chars);
 }
 
 std::string rstrip(const std::string &str,
-				   const std::string &chars = " ")
+				   const std::string &chars)
 {
 	return do_strip(str, 1, chars);
 }
 
-void split(const string& s, vector<string>& token, const string& delimiter = ",")
+void split(const string& s, vector<string>& token, const string& delimiter)
 {
 	string::size_type las_pos = s.find_first_not_of(delimiter, 0);
 	string::size_type pos = s.find_first_of(delimiter, las_pos);
@@ -196,7 +196,7 @@ void split(const string& s, vector<string>& token, const string& delimiter = ","
 >>> time2second("2017-01-01T02:52:16")
      1483257136
 */
-// long int
+// time_t as long int
 inline time_t time2second(const string &time_str_in_excel)
 {
 	// 将string转换为char
@@ -208,7 +208,7 @@ inline time_t time2second(const string &time_str_in_excel)
 	// 将string存储的日期时间，转换为int临时变量
 	sscanf(cha, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);
 	_tm.tm_year = year - 1900; // 年，由于tm结构体存储的是从1900年开始的时间，所以tm_year为int临时变量减去1900
-	_tm.tm_mon = month--;	  // 月，由于tm结构体的月份存储范围为0-11，所以tm_mon为int临时变量减去1
+	_tm.tm_mon = month--;	   // 月，由于tm结构体的月份存储范围为0-11，所以tm_mon为int临时变量减去1
 	_tm.tm_mday = day;		   // 日
 	_tm.tm_hour = hour;		   // 时
 	_tm.tm_min = minute;	   // 分
@@ -432,7 +432,7 @@ inline long estimate_record_num(istream &is)
 	}
 	int size1 = is.tellg();
 	int iall = file_size / size1 * i;
-	cout << "total about " << iall << " records ..." << endl;
+	cout << "Total about " << iall << " records ..." << endl;
 	// --- now estimate the mbr -------------------------
 	is.clear();
 	is.seekg(0, ios::beg);
@@ -533,7 +533,8 @@ VesselPos* create_instance(string &line_in_excel,
 		//
 		if(mbr_boundary.is_inside(longitude, latitude))
 		{
-			VesselPos vp(mmsi, time2second(data[BaseDateTime]), longitude, latitude, run);
+			// 有相当于全局变量的意义
+			static VesselPos vp(mmsi, time2second(data[BaseDateTime]), longitude, latitude, run);
 			return &vp;
 		}
 		else
@@ -574,7 +575,7 @@ private:
 
 public:
 	//--- directly push a line of excel record to let it parse and create a record and push to the dictionary!
-	bool push(string&, MBR&);
+	bool push_line(string&, MBR&);
 
 	// run -> run, we consider time difference = (pos_array[i].time_second - pos_array[i-1].time_second)
     // run -> stop, stop-> run, we consider time difference = (pos_array[i].time_second - pos_array[i-1].time_second)/2
@@ -586,14 +587,14 @@ public:
 	// debug code to check whether is really sorted!!!    
 	void dump(const char* fout);
 
-protected:
+public:
 	// to interpolate points, do NOT call it outside the class!!!
 	void _interpolate();
 
 	// -- sort every vector, do NOT call it outside the class ------------
 	void _sort();
 
-	bool compare_key(VesselPos&, VesselPos&);
+	static bool compare_key(VesselPos&, VesselPos&);
 
 protected:
 	// hash map
@@ -603,7 +604,7 @@ protected:
 	int interpolated_points_num = 0;
 };
 
-bool RecordTree::push(string& excel_vessel_pos_record_line, MBR& mbr)
+bool RecordTree::push_line(string& excel_vessel_pos_record_line, MBR& mbr)
 {
 	VesselPos* pos_record;
 	pos_record = create_instance(excel_vessel_pos_record_line, mbr);
@@ -680,6 +681,7 @@ void RecordTree::interpolate_and_output(const char* output_file)
 	interpolated_points_num = 0;
 	map<int, vector<VesselPos> >::iterator iter = data_map.begin();
 	ofstream os(output_file);
+	os << std::fixed << setprecision(2);
 	if (!os.is_open())
 	{
 		cerr << "[Error] fail to open file and interpolate ..." << endl;
@@ -754,6 +756,7 @@ void RecordTree::_sort()
 void RecordTree::dump(const char* fout)
 {
 	ofstream os(fout);
+	os << std::fixed << setprecision(2);
 	
 	if (!os.is_open())
 	{
@@ -762,7 +765,6 @@ void RecordTree::dump(const char* fout)
 	}
 	map<int, vector<VesselPos>>::iterator iter = data_map.begin();
 	
-
 	for (; iter!=data_map.end(); iter++)
 	{
 		vector<VesselPos> pos_vector = iter->second;
@@ -778,85 +780,115 @@ void RecordTree::dump(const char* fout)
 			   << endl;
 		}
 	}
+	os.close();
+	return;
 }
 
-class TreadPool
+/* class TreadPool
 {
-};
+}; */
 
 bool extract_data(const char *input_file,
 				  const char *output_file,
-				  MBR& user_cut_mbr
-				  //TODO: add some parameters to...
+				  MBR	&mbr,
+				  const char *debug_file1,
+				  const char *debug_file2,
+				  string     &output_desc_file
 )
 {
-	const char *separater = ", \t";
+	// const char *separater = ", \t";
+	
 	ifstream is(input_file);
-	ofstream os(output_file);
 
 	if (!is.is_open())
 	{
 		cerr << "[Error]: fail to open source file:" << input_file << endl;
 		return false;
 	}
-	if (!os.is_open())
-	{
-		cerr << "[Error]: fail to write file:" << output_file << endl;
-		return false;
-	}
 
 	int iall_record = estimate_record_num(is);
 
-	std::ostringstream out;
-	out << std::fixed << setprecision(2);
+	// std::ostringstream out;
+	// out << std::fixed << setprecision(2);
 
 	// vector<string> values;
+
 	char buffer[BUFFER_SIZE];
 	char temp[BUFFER_SIZE];
 	double longitude, latitude;
 
 	vector<std::string> ps;
 	// 分配足够的空间
-	ps.reserve(iall_record * 1.2);
+	// ps.reserve(iall_record * 5);
 
 	// 1. try to estimate positioning data number
-	cout << "[1] Now read data to memory ..." << endl;
+	cout << "Now read data to memory ..." << endl;
 	Process_notify notify0(5); // each 5% gives a notification
 	int _i(0);
+	// TODO: 跳过第一行
 	while (is.getline(buffer, BUFFER_SIZE - 2))
 	{
 		if (is.fail())
-			break;
-
+		{
+			cerr << "[Error]: Error! When execute reading progress " << endl;
+			return false;
+		}
+	
 		ps.push_back(buffer);
 		++_i;
-		notify0.push(_i * 100 / iall_record, "      Progress of Reading");
+		notify0.push(_i / iall_record, "Progress of Reading  ");
+
+		memset(buffer,'\0',sizeof(buffer));
 	}
 
 	// 2. generate record using each lines' information
 	RecordTree vessel_hash_table;
 	vector<string>::iterator iter = ps.begin();
-	for(; iter != ps.end(); iter++)
+	// ignore the first line
+	for(++iter; iter != ps.end(); iter++)
 	{
-		
+		vessel_hash_table.push_line(*iter, mbr);
 	}
+	
+	// 3. sort and ouput data to debug file to check it
+	vessel_hash_table._sort();
+	vessel_hash_table.dump(debug_file1);
 
-	// n. write to file
-	_i = 0;
-	// TODO: ensure which step？
-	cout << "[n] Now write to file ..." << endl;
-	Process_notify notify1(5);
-	int _i1(0);
-	os << std::fixed << setprecision(2);
-	for (auto &line : ps)
+	vessel_hash_table.filter_and_replace_positions();
+	vessel_hash_table.dump(debug_file2);
+
+	// 4. filter out repeat stop point, and interpolate points
+	vessel_hash_table.interpolate_and_output(output_file);
+
+	// 5. write to description file
+ 	// _i = 0;
+	cout << "Now write to description file ..." << endl;
+	string str_boundary;
+	string str_record;
+
+	ofstream os(output_desc_file);
+	if (!os.is_open())
 	{
-		os << line << endl;
-		++_i1;
-		notify1.push(_i1 * 100 / iall_record, "      Progress of Writing");
+		cerr << "[Error]: fail to write file:" << output_file << endl;
+		return false;
 	}
+	
+	// output additional information to description file
+	os << "[Source file]: " << input_file << endl;
+	os << "[Destination file]: " << output_file << endl;
+	os << "[Extracted fields]: " << endl;
+	os << str_record << endl;
+	os << str_boundary << endl;
 
-	is.close();
+	// write a recommanded Lo for transferring Long/Lat to x/y to file!
+	float recommand_L0[4]{0};
+
+	int L0 = find_best_coordinate_transfer_L0(recommand_L0[0], recommand_L0[2]);
+	// os << "L0 = " << to_string(L0) << endl;
+	os << "The recommended L0  = " << to_string(L0) << endl;
+
 	os.close();
+	is.close();
 
 	return true;
 }
@@ -882,7 +914,8 @@ int main(int argc, char const *argv[])
 	// bool FILEOUT_DEBUG1 = true;
 	// bool FILEOUT_DEBUG2 = true;
 
-	if (argc != 2 || argc != 6)
+	// TODO: 增加可以选择全部区域的选项
+	if (argc != 6)
 	{
 		help(argv);
 		return -1;
@@ -900,27 +933,31 @@ int main(int argc, char const *argv[])
 	output_xy_file += "_long_lat.csv";
 	output_xy_desc_file += output_xy_file + "_long_lat_MBR.txt";
 
-	// 改为不提供选项，两个debug文件都会生成
+	// 不提供选项，两个debug文件都会生成
 	string output_xy_file_debug1 = output_xy_file + "long_lat_debug1.txt";
 	string output_xy_file_debug2 = output_xy_file + "long_lat_debug2.txt";
 
-	if (argc == 6)
-	{
-		float _mbr[4];
-		// TODO: 将double转换为float时会出现精度缺失问题
-		_mbr[0] = atof(argv[2]);
-		_mbr[1] = atof(argv[3]);
-		_mbr[2] = atof(argv[4]);
-		_mbr[3] = atof(argv[5]);
+/* 	if (argc == 6)
+	{ */
+	float _mbr[4];
+	// TODO: 将double转换为float时会出现精度缺失问题
+	_mbr[0] = atof(argv[2]);
+	_mbr[1] = atof(argv[3]);
+	_mbr[2] = atof(argv[4]);
+	_mbr[3] = atof(argv[5]);
 
-		MBR user_cut_mbr(_mbr);
-	}
+	MBR user_cut_mbr(_mbr);
+	/* 	}  */
 
-	cout << "Now open" << output_xy_file << "for writing final results" << endl;
+	cout << "Now open" << output_xy_file << " for reading data ... " << endl;
 
 	if (!extract_data(input_longtilanti_file,
-					  static_cast<const char *>(output_xy_file.c_str(),
-					  )))
+					  static_cast<const char *>(output_xy_file.c_str()),
+					  user_cut_mbr,
+					  output_xy_file_debug1.c_str(),
+					  output_xy_file_debug2.c_str(),
+					  output_xy_desc_file
+					  ))
 	{
 		cerr << "[ERROR] Failed to extract data ..." << endl;
 		return -1;
@@ -929,26 +966,6 @@ int main(int argc, char const *argv[])
 	else
 	{
 		cout << "[OK] Successfully tranferred to file " << output_xy_file << endl;
-		// cout << "[OK] Total " << endl;
-
-		string str_boundary;
-		string str_record;
-
-		ofstream os(output_xy_desc_file);
-		// output additional information to description file
-		os << "[Source file]: " << input_longtilanti_file << endl;
-		os << "[Destination file]: " << output_xy_file << endl;
-		os << "[Extracted fields]: " << endl;
-		os << str_record << endl;
-		os << str_boundary << endl;
-
-		// write a recommanded Lo for transferring Long/Lat to x/y to file!
-		float recommand_L0[4]{0};
-
-		int L0 = find_best_coordinate_transfer_L0(recommand_L0[0], recommand_L0[2]);
-		// os << "L0 = " << to_string(L0) << endl;
-		os << "The recommended L0  = " << to_string(L0) << endl;
-		os.close();
 	}
 
 	return 0;
