@@ -53,9 +53,10 @@ NEW-STANDARD SINCE 2018:
    tanker: 1017,1024
    tug tow: 1023,1025
 */
-const vector<unsigned int> SELECT_VESSEL_TYPE = {
-	80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 1017, 1024}; // only select tankers
+const vector<unsigned int> SELECT_VESSEL_TYPE =  {1001, 1004};	// only for test file I currently have
 
+	/* {
+	80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 1017, 1024}; // only select tankers */
 
 // if file with one line larger than this number, it is a illegal file
 #define BUFFER_SIZE 10024
@@ -82,7 +83,7 @@ std::string rstrip(const std::string &str,
 				   const std::string &chars = " ");
 
 // 先不用正则表达式
-void split(const string& s, vector<string>& token, const string& delimiter = ",");
+void split(const string& s, vector<string>& token, const string& delimiter);
 
 
 std::string do_strip(const std::string &str,
@@ -171,7 +172,7 @@ std::string rstrip(const std::string &str,
 	return do_strip(str, 1, chars);
 }
 
-void split(const string& s, vector<string>& token, const string& delimiter)
+void split(const string& s, vector<string>& token, const string& delimiter = ",")
 {
 	string::size_type las_pos = s.find_first_not_of(delimiter, 0);
 	string::size_type pos = s.find_first_of(delimiter, las_pos);
@@ -239,6 +240,7 @@ inline string second2time(const time_t &time_in_second)
 	sprintf(dayStr, "%d", day);		  // 日
 	sprintf(hourStr, "%d", hour);	 // 时
 	sprintf(minuteStr, "%d", minute); // 分
+	sprintf(secondStr, "%d", second); // 秒
 	// 如果分为一位，如5，则需要转换字符串为两位，如05
 	if (minuteStr[1] == '\0')
 	{
@@ -246,15 +248,15 @@ inline string second2time(const time_t &time_in_second)
 		minuteStr[1] = minuteStr[0];
 		minuteStr[0] = '0';
 	}
-	// 如果秒为一位，如5，则需要转换字符串为两位，如05
+	
 	if (secondStr[1] == '\0')
 	{
 		secondStr[2] = '\0';
-		secondStr[1] = minuteStr[0];
+		secondStr[1] = secondStr[0];
 		secondStr[0] = '0';
 	}
 	// 定义总日期时间变量
-	char s[20];
+	char s[26];
 	// 将年月日时分秒合并
 	sprintf(s, "%s-%s-%sT%s:%s:%s", yearStr, monthStr, dayStr, hourStr, minuteStr, secondStr);
 	string str_time(s);
@@ -349,7 +351,6 @@ map<string, int> vessel_running_dictionary = {
 class MBR
 {
 public:
-	// 删除默认构造函数
 	MBR();
 	MBR(const float *b) : boundary{b[min_longti], b[min_lanti],
 								   b[max_longti], b[max_lanti]} {}
@@ -457,17 +458,15 @@ class VesselPos
         - if in the given area and is the specified vessel type, generate an instance
         - otherwise None is returned!
 ......................................................................................................................*/
-	static VesselPos* create_instance(string&, MBR &);
+	VesselPos* create_instance(string&, VesselPos&, MBR&);
 	static int get_running_state(const string&);
 
 public:
 	VesselPos();
 	VesselPos(int, time_t, float, float, int, int);
 	~VesselPos();
-
-	string to_res(const VesselPos&);
+	string to_res();
 	
-	// we just ouput longitude, latitude
 	friend class RecordTree;
 
 protected:
@@ -518,7 +517,7 @@ VesselPos* create_instance(string &line_in_excel,
 	vector<string> data;
 	split(line, data);
 	
-	if(data[VesselType] == " ")
+	if(data[VesselType] == "")
 		return nullptr;
 	
 	int vessel_type = atoi(data[VesselType].c_str());
@@ -527,13 +526,12 @@ VesselPos* create_instance(string &line_in_excel,
 	if(found != 0)
 	{
 		int mmsi = atoi(data[MMSI].c_str());
-		float longitude = atof(data[longitude].c_str());
-		float latitude  = atof(data[latitude].c_str());
+		float latitude  = atof(data[LAT].c_str());
+		float longitude = atof(data[LON].c_str());
 		int run = get_running_state(data[Status]);
-		//
+		
 		if(mbr_boundary.is_inside(longitude, latitude))
 		{
-			// 有相当于全局变量的意义
 			static VesselPos vp(mmsi, time2second(data[BaseDateTime]), longitude, latitude, run);
 			return &vp;
 		}
@@ -546,13 +544,12 @@ VesselPos* create_instance(string &line_in_excel,
 	return nullptr;
 }
 
-string VesselPos::to_res(const VesselPos &)
+string VesselPos::to_res()
 {
 	//char* ouput_line;
 	string res;
-	res = to_string(MMSI) + "," + to_string(longti) + "," + to_string(lanti) + "," + second2time(time_second) + "," + status2string(status) + "," + to_string(time_diff);
-	// 换行符单独写 测试一下
-	res.append("\n");
+	res = to_string(MMSI) + "," + to_string(longti) + "," + to_string(lanti) + "," + second2time(time_second) + "," + status2string(status) + "," + to_string(time_diff) + "\n";
+	return res;
 }
 
 /*-------------------------------------------------------------------------
@@ -586,8 +583,10 @@ public:
 
 	// debug code to check whether is really sorted!!!    
 	void dump(const char* fout);
+	int datamap_size();
 
 public:
+	RecordTree();
 	// to interpolate points, do NOT call it outside the class!!!
 	void _interpolate();
 
@@ -604,17 +603,23 @@ protected:
 	int interpolated_points_num = 0;
 };
 
+RecordTree::RecordTree():fsm(FSM_STATE_VESSEL_RUNNING)
+{
+	
+}
+
 bool RecordTree::push_line(string& excel_vessel_pos_record_line, MBR& mbr)
 {
 	VesselPos* pos_record;
 	pos_record = create_instance(excel_vessel_pos_record_line, mbr);
 	if(pos_record == nullptr)
 		return false;
-	if(data_map.find(pos_record -> MMSI) == data_map.end())
-		data_map.insert(pair<int, vector<VesselPos> >(MMSI, vector<VesselPos>{}));
-
+	if(data_map.count(pos_record -> MMSI) == 0)
+	{
+		data_map.insert(pair<int, vector<VesselPos>>(pos_record -> MMSI, vector<VesselPos>{}));
+	}
 	data_map[pos_record -> MMSI].push_back(*pos_record);
-	delete pos_record;
+
 	return true;
 }
 
@@ -721,7 +726,7 @@ void RecordTree::interpolate_and_output(const char* output_file)
 				return;
 			}
 			// whatever which i, always write it to file;
-			os << to_string(pos_vector[i].longti) << to_string(pos_vector[i].lanti) << endl;
+			os << to_string(pos_vector[i].longti) << "," << to_string(pos_vector[i].lanti) << endl;
 		}
 	}
 	os.close();
@@ -736,27 +741,32 @@ bool RecordTree::compare_key(VesselPos& p1, VesselPos& p2)
 
 void RecordTree::_sort()
 {
-	Process_notify notify(5);
-	cout << "Now sorting" << endl;
+	process_notify notify(5);
+	cout << "---------------------------------" << endl;
+	cout << "Now sorting ..." << endl;
+	cout << "---------------------------------" << endl;
 	int iall = data_map.size();
+	cout << "All " << iall << " lines" << " have been sorted."<< endl;
+
 	int i = 0;
 	map<int, vector<VesselPos>>::iterator iter = data_map.begin();
 	
-	for(; iter!=data_map.end(); iter++)
+	for(; iter != data_map.end(); iter++)
 	{
 		vector<VesselPos> pos_vector = iter->second;
 		sort(pos_vector.begin(), pos_vector.end(), compare_key); 
 		// 进度条
-		notify.push(i*100 / iall, "sorted");
+		i++;
+		notify.push(i*100.0 / iall, "sorted");
 	}
 	return;
 }
 
-// debug code
+// debug code: write result to file
 void RecordTree::dump(const char* fout)
 {
 	ofstream os(fout);
-	os << std::fixed << setprecision(2);
+	// os << std::fixed << setprecision(2);
 	
 	if (!os.is_open())
 	{
@@ -765,23 +775,23 @@ void RecordTree::dump(const char* fout)
 	}
 	map<int, vector<VesselPos>>::iterator iter = data_map.begin();
 	
-	for (; iter!=data_map.end(); iter++)
+	for (; iter != data_map.end(); iter++)
 	{
 		vector<VesselPos> pos_vector = iter->second;
 		vector<VesselPos>::iterator it = pos_vector.begin();
 		
 		for(; it!=pos_vector.end(); it++)
 		{
-			os << to_string(it->MMSI)
-			   << to_string(it->time_second)
-			   << to_string(it->longti)
-			   << to_string(it->lanti)
-			   << to_string(it->status)
-			   << endl;
+			os << (*it).to_res();
 		}
 	}
 	os.close();
 	return;
+}
+
+int RecordTree::datamap_size()
+{
+	return data_map.size();
 }
 
 /* class TreadPool
@@ -814,42 +824,58 @@ bool extract_data(const char *input_file,
 	// vector<string> values;
 
 	char buffer[BUFFER_SIZE];
-	char temp[BUFFER_SIZE];
+	// char temp[BUFFER_SIZE];
 	double longitude, latitude;
 
 	vector<std::string> ps;
 	// 分配足够的空间
-	// ps.reserve(iall_record * 5);
+	ps.reserve(iall_record * 5);
 
 	// 1. try to estimate positioning data number
+	cout << "---------------------------------" << endl;
 	cout << "Now read data to memory ..." << endl;
-	Process_notify notify0(5); // each 5% gives a notification
+	cout << "---------------------------------" << endl;
+	process_notify notify0(10); // each 5% gives a notification
 	int _i(0);
-	// TODO: 跳过第一行
+	
 	while (is.getline(buffer, BUFFER_SIZE - 2))
 	{
 		if (is.fail())
 		{
 			cerr << "[Error]: Error! When execute reading progress " << endl;
+			// is.clear();
 			return false;
 		}
-	
+
 		ps.push_back(buffer);
 		++_i;
-		notify0.push(_i / iall_record, "Progress of Reading  ");
-
+		notify0.push(_i*100 / iall_record, "Progress of loading  ");
 		memset(buffer,'\0',sizeof(buffer));
 	}
+
+	cout << "All " << ps.size() << " have been launched" << endl;
 
 	// 2. generate record using each lines' information
 	RecordTree vessel_hash_table;
 	vector<string>::iterator iter = ps.begin();
-	// ignore the first line
-	for(++iter; iter != ps.end(); iter++)
+	process_notify notify1(5);
+	_i = 0;
+
+	cout << "---------------------------------" << endl;
+	cout << "Now create line instances ..." << endl;
+	cout << "---------------------------------" << endl;
+	for(; iter != ps.end(); iter++)
 	{
-		vessel_hash_table.push_line(*iter, mbr);
+		// * 是解运算操作符
+		if (vessel_hash_table.push_line(*iter, mbr))
+		{
+			++_i;
+			notify1.push(_i * 100 / iall_record, "Progress of reading  ");
+		}
 	}
-	
+
+	cout << "All " << vessel_hash_table.datamap_size() << " have been read" << endl;
+
 	// 3. sort and ouput data to debug file to check it
 	vessel_hash_table._sort();
 	vessel_hash_table.dump(debug_file1);
@@ -862,9 +888,11 @@ bool extract_data(const char *input_file,
 
 	// 5. write to description file
  	// _i = 0;
+	cout << "---------------------------------" << endl;
 	cout << "Now write to description file ..." << endl;
-	string str_boundary;
-	string str_record;
+	cout << "---------------------------------" << endl;
+	string str_boundary = "";
+	string str_record = "";
 
 	ofstream os(output_desc_file);
 	if (!os.is_open())
@@ -873,6 +901,9 @@ bool extract_data(const char *input_file,
 		return false;
 	}
 	
+	// str_boundary += ; 
+	// str_record += ;
+
 	// output additional information to description file
 	os << "[Source file]: " << input_file << endl;
 	os << "[Destination file]: " << output_file << endl;
@@ -881,7 +912,8 @@ bool extract_data(const char *input_file,
 	os << str_boundary << endl;
 
 	// write a recommanded Lo for transferring Long/Lat to x/y to file!
-	float recommand_L0[4]{0};
+	float* recommand_L0;
+	recommand_L0 = mbr.get_boundary();
 
 	int L0 = find_best_coordinate_transfer_L0(recommand_L0[0], recommand_L0[2]);
 	// os << "L0 = " << to_string(L0) << endl;
@@ -911,9 +943,6 @@ void help(const char **argv)
 
 int main(int argc, char const *argv[])
 {
-	// bool FILEOUT_DEBUG1 = true;
-	// bool FILEOUT_DEBUG2 = true;
-
 	// TODO: 增加可以选择全部区域的选项
 	if (argc != 6)
 	{
@@ -927,15 +956,18 @@ int main(int argc, char const *argv[])
 	temp[strlen(input_longtilanti_file) - 4] = 0;
 	string output_xy_file(temp);
 	string output_xy_desc_file(temp);
+	string output_xy_file_debug1(temp);
+	string output_xy_file_debug2(temp);
 	delete[] temp;
 
 	// 设置一些输出文件的名称
-	output_xy_file += "_long_lat.csv";
-	output_xy_desc_file += output_xy_file + "_long_lat_MBR.txt";
-
-	// 不提供选项，两个debug文件都会生成
-	string output_xy_file_debug1 = output_xy_file + "long_lat_debug1.txt";
-	string output_xy_file_debug2 = output_xy_file + "long_lat_debug2.txt";
+	output_xy_file += "_long_lat.txt";
+	output_xy_desc_file += + "_long_lat_MBR.txt";
+	// 先不提供选项，两个debug文件都会生成
+	// bool FILEOUT_DEBUG1 = true;
+	// bool FILEOUT_DEBUG2 = true;
+	output_xy_file_debug1 += "_long_lat_debug1.txt";
+	output_xy_file_debug2 += "_long_lat_debug2.txt";
 
 /* 	if (argc == 6)
 	{ */
