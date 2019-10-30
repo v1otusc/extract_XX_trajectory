@@ -12,7 +12,7 @@ Revision Histry
             说明：这个工具好像可以在统计频率后使用，这样可以节省一点坐标转换的时间！
 2019-08-27 Xiaoguo Zhang, add thread-pool to support multi-thread functionality
             currently a simple solution is used:
-            I/O --> vector ---> taskcoordinator  ---> thread 1 , transfer and directly write (x,y) to replace the old (long/lat)
+            I/O --> vector ---> taskcoordinator     ---> thread 1 , transfer and directly write (x,y) to replace the old (long/lat)
                                                     ---> thread 2 , transfer and directly write (x,y) to replace the old (long/lat)
                                                     ---> thread 3 , transfer and directly write (x,y) to replace the old (long/lat)
                                                     ---> thread 4 , transfer and directly write (x,y) to replace the old (long/lat)

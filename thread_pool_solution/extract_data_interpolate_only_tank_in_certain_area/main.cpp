@@ -1,6 +1,11 @@
+/*
+ * @Author: Zihan Zhang 
+ * @Date: 2019-10-30 21:25:42 
+ * @Last Modified by: Zihan Zhang
+ * @Last Modified time: 2019-10-30 22:28:34
+ */
 #include <vector>
 #include <fstream>
-/*stringstream*/
 #include <sstream>
 #include <cstring>
 #include <iomanip>
@@ -10,12 +15,9 @@
 #include <map>
 #include <algorithm>
 
-//---------------
-/*计时*/
 #include "Timer.h"
-/*定时汇报消息*/
 #include "notify.h"
-//---------------
+
 #if defined(linux) || defined(__linux) || defined(__linux__)
 //CPU core
 #include <sys/sysinfo.h>
@@ -39,7 +41,6 @@ inline int get_CPU_core_num()
 }
 
 using namespace std;
-
 /*
 OLD STANDARD:
 
@@ -82,7 +83,7 @@ std::string lstrip(const std::string &str,
 std::string rstrip(const std::string &str, 
 				   const std::string &chars = " ");
 
-// TODO:学习一下使用正则表达式
+// TODO: 学习一下使用正则表达式吧还是
 void split(const string& s, vector<string>& token, const string& delimiter);
 
 
@@ -93,7 +94,6 @@ std::string do_strip(const std::string &str,
 	std::string::size_type strlen = str.size();
 	std::string::size_type charslen = chars.size();
 	std::string::size_type i, j;
-
 	//默认情况下，去除空白符
 	if (0 == charslen)
 	{
@@ -126,7 +126,6 @@ std::string do_strip(const std::string &str,
 		i = 0;
 		if (striptype != 1)
 		{
-			//memchr函数：从sep指向的内存区域的前charslen个字节查找str[i]
 			while (i < strlen && memchr(sep, str[i], charslen))
 			{
 				i++;
@@ -142,7 +141,6 @@ std::string do_strip(const std::string &str,
 			}
 			j++;
 		}
-		//如果无需要删除的字符
 		if (0 == i && j == strlen)
 		{
 			return str;
@@ -187,13 +185,9 @@ void split(const string& s, vector<string>& token, const string& delimiter = ","
 
 inline time_t time2second(const string &time_str_in_excel)
 {
-	// 将string转换为char
 	char *cha = (char *)time_str_in_excel.data();
-	// 定义tm结构体
 	tm _tm;
-	// 定义时间的各个int临时变量
 	int year, month, day, hour, minute, second;
-	// 将string存储的日期时间，转换为int临时变量
 	sscanf(cha, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute, &second);
 	_tm.tm_year = year - 1900; // 年，由于tm结构体存储的是从1900年开始的时间，所以tm_year为int临时变量减去1900
 	_tm.tm_mon = month - 1;	   // 月，由于tm结构体的月份存储范围为0-11，所以tm_mon为int临时变量减去1
@@ -203,30 +197,27 @@ inline time_t time2second(const string &time_str_in_excel)
 	_tm.tm_sec = second;	   // 秒
 	_tm.tm_isdst = 0;		   // 非夏令时
 	time_t _t = mktime(&_tm);
-
 	return _t;
 }
 
 inline string second2time(const time_t &time_in_second)
 {
-	// 将time_t格式转换为tm结构体
 	tm *tm_ = localtime(&time_in_second);
-	// 定义时间的各个int临时变量
 	int year, month, day, hour, minute, second;
-	year = tm_->tm_year + 1900; // 临时变量，年，由于tm结构体存储的是从1900年开始的时间，所以临时变量int为tm_year加上1900
-	month = tm_->tm_mon + 1;	// 临时变量，月，由于tm结构体的月份存储范围为0-11，所以临时变量int为tm_mon加上1
-	day = tm_->tm_mday;			// 临时变量，日
-	hour = tm_->tm_hour;		// 临时变量，时
-	minute = tm_->tm_min;		// 临时变量，分
-	second = tm_->tm_sec;		// 临时变量，秒
+	year = tm_->tm_year + 1900; // 年，由于tm结构体存储的是从1900年开始的时间，所以临时变量int为tm_year加上1900
+	month = tm_->tm_mon + 1;	// 月，由于tm结构体的月份存储范围为0-11，所以临时变量int为tm_mon加上1
+	day = tm_->tm_mday;			// 日
+	hour = tm_->tm_hour;		// 时
+	minute = tm_->tm_min;		// 分
+	second = tm_->tm_sec;		// 秒
 	// 定义时间的各个char*变量
 	char yearStr[5], monthStr[3], dayStr[3], hourStr[3], minuteStr[3], secondStr[3];
-	sprintf(yearStr, "%d", year);	 // 年
-	sprintf(monthStr, "%d", month);   // 月
-	sprintf(dayStr, "%d", day);		  // 日
-	sprintf(hourStr, "%d", hour);	 // 时
-	sprintf(minuteStr, "%d", minute); // 分
-	sprintf(secondStr, "%d", second); // 秒
+	sprintf(yearStr, "%d", year);	 
+	sprintf(monthStr, "%d", month);   
+	sprintf(dayStr, "%d", day);		  
+	sprintf(hourStr, "%d", hour);	 
+	sprintf(minuteStr, "%d", minute);
+	sprintf(secondStr, "%d", second);
 	// 如果分为一位，如5，则需要转换字符串为两位，如05
 	if (minuteStr[1] == '\0')
 	{
@@ -234,7 +225,6 @@ inline string second2time(const time_t &time_in_second)
 		minuteStr[1] = minuteStr[0];
 		minuteStr[0] = '0';
 	}
-	
 	if (secondStr[1] == '\0')
 	{
 		secondStr[2] = '\0';
@@ -260,13 +250,13 @@ inline string status2string(const int vessel_state_int_value)
 }
 
 // API for find the best L0 of longitude for coordinate transfering
-int find_best_coordinate_transfer_L0(float minlongitude, float maxlongtitude)
+int find_best_coordinate_transfer_L0(const float minlongitude, const float maxlongtitude)
 {
 	float midlongti = (minlongitude + maxlongtitude) / 2;
 	int sign = 1;
 	if (midlongti < 0)
 		sign = -1;
-	midlongti = abs(midlongti);
+	midlongti = abs(midlongti); 
 	//-------------------------
 	int L0_min = int(midlongti);
 	int L0_max = L0_min;
@@ -299,7 +289,7 @@ enum FIELDS
 
 //--- hash table of vessel running status ---
 // vessel status meaning
-// if we failed to find the status string in the following table, we also it is in running state!
+// if we failed to find the status string in the following table, we also treat it is in running state!
 map<string, int> vessel_running_dictionary = {
 	{"", VESSEL_RUN},
 	{"undefined", VESSEL_RUN},
@@ -411,7 +401,6 @@ inline long estimate_record_num(istream &is)
  each record is mapped to one line of excel file
  we let every member to be public, so that to accelerate the speed
 */
-
 class VesselPos
 {
 	/*......................................................................................................................
@@ -427,14 +416,11 @@ class VesselPos
 ......................................................................................................................*/
 	friend void create_instance(string&, VesselPos&, MBR&);
 	static int get_running_state(const string&);
-
 public:
 	VesselPos();
 	VesselPos(int, time_t, float, float, int, int);
 	~VesselPos();
-	
-	string to_res();
-	
+	string to_res();	
 	friend class RecordTree;
 
 protected:
@@ -474,13 +460,11 @@ int get_running_state(const string &s)
 	else
 		return iter->second;
 }
-
 // 原始数据转换
 void create_instance(string &line_in_excel,
 						   VesselPos& vp,
 						   MBR    &mbr_boundary)
 {
-	// python rstrip()实现
 	string line = rstrip(line_in_excel);
 	vector<string> data;
 	split(line, data);
@@ -540,7 +524,6 @@ class RecordTree
 private:
 	const int FSM_STATE_VESSEL_STOP = 0;
 	const int FSM_STATE_VESSEL_RUNNING = 1;
-
 public:
 	RecordTree();
 	//--- directly push a line of excel record to let it parse and create a record and push to the dictionary!
@@ -558,19 +541,14 @@ public:
 	// -- sort every vector, do NOT call it outside the class ------------
 	void _sort();
 	static bool compare_key(VesselPos&, VesselPos&);
-
 protected:
-	// hash map
 	int fsm;
 	MBR mbr;
 	map<int, vector<VesselPos>> data_map;
 	int interpolated_points_num = 0;
 };
 
-RecordTree::RecordTree():fsm(FSM_STATE_VESSEL_STOP)
-{
-	
-}
+RecordTree::RecordTree():fsm(FSM_STATE_VESSEL_STOP) {}
 
 bool RecordTree::push_line(string& excel_vessel_pos_record_line, MBR& mbr)
 {
@@ -583,7 +561,6 @@ bool RecordTree::push_line(string& excel_vessel_pos_record_line, MBR& mbr)
 		data_map.insert(pair<int, vector<VesselPos>>(pos_record.MMSI, vector<VesselPos>{}));
 	}
 	data_map[pos_record.MMSI].push_back(pos_record);
-
 	return true;
 }
 
@@ -655,7 +632,7 @@ void RecordTree::interpolate_and_output(const char* output_file)
 	interpolated_points_num = 0;
 	map<int, vector<VesselPos> >::iterator iter = data_map.begin();
 	ofstream os(output_file);
-	// os << std::fixed << setprecision(2);
+
 	if (!os.is_open())
 	{
 		cerr << "[Error] fail to open file and interpolate ..." << endl;
@@ -704,7 +681,7 @@ void RecordTree::interpolate_and_output(const char* output_file)
 
 bool RecordTree::compare_key(VesselPos& p1, VesselPos& p2)
 {
-	// 升序排列
+	// 根据时间升序排列
 	return p1.time_second < p2.time_second;
 }
 
@@ -713,7 +690,6 @@ void RecordTree::_sort()
 	cout << "---------------------------------" << endl;
 	cout << "Now sorting ..." << endl;
 	cout << "---------------------------------" << endl;
-
 	int i = 0;
 	map<int, vector<VesselPos>>::iterator iter = data_map.begin();
 	
@@ -724,6 +700,7 @@ void RecordTree::_sort()
 		iter->second = pos_vector;
 		i += pos_vector.size();
 	}
+
 	cout << "All " << i << " lines" << " have been sorted."<< endl;
 	return;
 }
@@ -732,8 +709,6 @@ void RecordTree::_sort()
 void RecordTree::dump(const char* fout)
 {
 	ofstream os(fout);
-	// os << std::fixed << setprecision(2);
-	
 	if (!os.is_open())
 	{
 		cerr << "[Error] Bug when execute dump function ..." << endl;
@@ -755,15 +730,50 @@ void RecordTree::dump(const char* fout)
 	return;
 }
 
+// Debug code, just ignore ... 
 int RecordTree::datamap_size()
 {
 	return data_map.size();
 }
 
-
-/* class TreadPool
+// TODO:
+struct TaskInfo
 {
-}; */
+	
+};
+
+class mutex_locker
+{
+public:
+	mutex_locker() = delete;
+	mutex_locker(std::mutex & locker1) :locker(locker1)
+	{
+		locker.lock();
+	}
+	~mutex_locker()
+	{
+		locker.unlock();
+	}
+protected:
+	std::mutex&  locker;
+};
+
+// TODO:
+//--------------------------------------------------------------------------------------------------------------------
+//   class TaskCoordinator is dedicatedly designed for coordinate resource control during multi-thread interpolate
+//   this class won't activate any thread, and it is just be called by threads stored in threadpool
+//--------------------------------------------------------------------------------------------------------------------
+class TaskCoordinator
+{
+
+};
+
+// TODO: 讲extract_data函数的一部分代码转移到这里
+class TreadPool
+{
+	
+};
+
 
 bool extract_data(const char *input_file,
 				  const char *output_file,
@@ -772,9 +782,7 @@ bool extract_data(const char *input_file,
 				  const char *debug_file2,
 				  string     &output_desc_file
 )
-{
-	// const char *separater = ", \t";
-	
+{	
 	ifstream is(input_file);
 
 	if (!is.is_open())
@@ -784,19 +792,11 @@ bool extract_data(const char *input_file,
 	}
 
 	int iall_record = estimate_record_num(is);
-
-	// std::ostringstream out;
-	// out << std::fixed << setprecision(2);
-
-	// vector<string> values;
-
 	char buffer[BUFFER_SIZE];
-	// char temp[BUFFER_SIZE];
 	double longitude, latitude;
-
 	vector<std::string> ps;
-	// 分配足够的空间
-	ps.reserve(iall_record * 5);
+	//分配足够的空间
+	ps.reserve(iall_record * 1.2);
 
 	// 1. try to estimate positioning data number
 	cout << "---------------------------------" << endl;
@@ -845,14 +845,12 @@ bool extract_data(const char *input_file,
 	vessel_hash_table._sort();
 	vessel_hash_table.dump(debug_file1);
 
+	// 4. filter out repeat stop point, and interpolate points
 	vessel_hash_table.filter_and_replace_positions();
 	vessel_hash_table.dump(debug_file2);
-
-	// 4. filter out repeat stop point, and interpolate points
 	vessel_hash_table.interpolate_and_output(output_file);
 
 	// 5. write to description file
- 	// _i = 0;
 	cout << "---------------------------------" << endl;
 	cout << "Now write to description file ..." << endl;
 	cout << "---------------------------------" << endl;
@@ -886,7 +884,6 @@ bool extract_data(const char *input_file,
 
 	os.close();
 	is.close();
-
 	return true;
 }
 
@@ -908,7 +905,7 @@ void help(const char **argv)
 
 int main(int argc, char const *argv[])
 {
-	// TODO: 增加可以选择全部区域的选项
+	// TODO: 增加可以选择全部区域的选项，现在竟然只能自己手动选
 	if (argc != 6)
 	{
 		help(argv);
@@ -928,7 +925,7 @@ int main(int argc, char const *argv[])
 	// 设置一些输出文件的名称
 	output_xy_file += "_long_lat.txt";
 	output_xy_desc_file += + "_long_lat_MBR.txt";
-	// 先不提供选项，两个debug文件都会生成
+	// TODO: 先不提供选项，两个debug文件都会生成
 	// bool FILEOUT_DEBUG1 = true;
 	// bool FILEOUT_DEBUG2 = true;
 	output_xy_file_debug1 += "_long_lat_debug1.txt";
@@ -937,7 +934,7 @@ int main(int argc, char const *argv[])
 /* 	if (argc == 6)
 	{ */
 	float _mbr[4];
-	// TODO: 将double转换为float时会出现精度缺失问题，除了自己写个模板，还有什么解决办法
+	// TODO: 将double转换为float时会出现精度缺失问题，除了自己写个模板，试图寻找其他解决方法中 ...
 	_mbr[0] = atof(argv[2]);
 	_mbr[1] = atof(argv[3]);
 	_mbr[2] = atof(argv[4]);
@@ -959,7 +956,6 @@ int main(int argc, char const *argv[])
 		cerr << "[ERROR] Failed to extract data ..." << endl;
 		return -1;
 	}
-
 	else
 		cout << "[Congratulations!!!] Successfully tranferred to file " << output_xy_file << endl;
 
