@@ -43,7 +43,6 @@ inline int get_CPU_core_num()
 using namespace std;
 /*
 OLD STANDARD:
-
    cargo:  “VesselType” = 70 OR “VesselType” = 71 OR “VesselType” = 72 OR “VesselType” = 73 OR “VesselType” = 74 OR “VesselType” = 75 OR “VesselType” = 76 OR “VesselType” = 77 OR “VesselType” = 78 OR “VesselType” = 79 
    tanker: “VesselType” = 80 OR “VesselType” = 81 OR “VesselType” = 82 OR “VesselType” = 83 OR “VesselType” = 84 OR “VesselType” = 85 OR “VesselType” = 86 OR “VesselType” = 87 OR “VesselType” = 88 OR “VesselType” = 89 
    tug and tow: “VesselType” = 31 OR “VesselType” = 32 OR “VesselType” = 52 
@@ -463,7 +462,7 @@ int get_running_state(const string &s)
 // 原始数据转换
 void create_instance(string &line_in_excel,
 					 VesselPos& vp,
-					 MBR    &mbr_boundary)
+					 MBR& mbr_boundary)
 {
 	string line = rstrip(line_in_excel);
 	vector<string> data;
@@ -509,7 +508,6 @@ string VesselPos::to_res()
 
 /*-------------------------------------------------------------------------
   we use hash map data structure to organize data
-
    (MMSI, vector)
    all position with the same MMSI are stored in the same vector
    and we will sort all those vectors using time information
@@ -729,208 +727,39 @@ void RecordTree::dump(const char* fout)
 	os.close();
 	return;
 }
+
 // Debug code, just ignore ... 
 int RecordTree::datamap_size()
 {
 	return data_map.size();
 }
 
-// TODO: 显示任务信息
-struct TaskInfo
-{
-	friend ostream& operator <<(ostream& os, const TaskInfo& info)
-	{
-		return (os << "ThreadID: " << info.id << ", [" << info.cursor_from << "," << info.cursor_to << "] ");
-	}
-public:
-	std::thread::id      id;
-	vector<string>*      posinfos;
-	RecordTree*  	     rt;                   // used to extract data
-	MBR*                 mbr;
-	int                  cursor_from;          // pos --- subscriber from  
-	int                  cursor_to;            // pos --- subscribe  to    
-};
-
-class mutex_locker
-{
-public:
-	mutex_locker() = delete;
-	mutex_locker(std::mutex& locker) : _locker(locker)
-	{
-		_locker.lock();
-	}
-	~mutex_locker()
-	{
-		_locker.unlock();
-	}
-protected:
-	std::mutex&  _locker;
-};
-
-// TODO: 
-//--------------------------------------------------------------------------------------------------------------------
-//   class TaskCoordinator is dedicatedly designed for coordinate resource control during multi-thread interpolate
-//   this class won't activate any thread, and it is just be called by threads stored in threadpool
-//--------------------------------------------------------------------------------------------------------------------
-class TaskCoordinator
-{
-public:
-	//----------------------------------------------------------------------------------------------------------------
-	// please be aware that, we will do some optimization on block size, so the parameter set could be changed during
-	// optimization                 
-	//----------------------------------------------------------------------------------------------------------------
-	TaskCoordinator()
-	{
-		__total_threads = get_CPU_core_num(); // get_CPU_core_num() * 2;
-		__cursor = 0;
-	}
-
-	void init(vector<string>* posinfos,
-			  RecordTree*     rt,
-			  MBR*            mbr,
-			  const int       batch_num = 200)
-	{
-		__posinfos = posinfos;
-		__rt = rt;
-		__mbr = mbr;
-		__batch_num = batch_num;
-		__cursor = 0;
-	}
-
-	bool QueryTask(TaskInfo& info, const std::thread::id &thread_id)   //interface for thread, if no task, return false!
-	{
-		mutex_locker m_locker(__locker);
-		// if we have processed all data, quit!
-		int iall = __posinfos->size();
-		if (this->__cursor == iall)
-		{
-			__live_tasks.erase(thread_id);
-			return false;
-		}
-
-		info.posinfos = __posinfos;
-		info.rt = __rt;
-		info.mbr = __mbr;
-		info.cursor_from = __cursor;
-		// 防止越界
-		info.cursor_to = (std::min<int>)(__cursor + __batch_num, iall-1);
-		__cursor = info.cursor_to + 1;
-		__live_tasks[thread_id] = info;
-		// set something for the next call of QueryTask(...)
-		// __notify.push(100.0*__cursor / (iall));
-		return true;
-	}
-
-	int get_total_threads() const
-	{
-		return __total_threads;
-	}
-
-protected:
-	std::mutex            __locker;
-	vector<string>*       __posinfos;             // pos vector
-	RecordTree*   		  __rt;
-	MBR*                  __mbr;
-	long                  __cursor;               // start from this position, the previous have been assigned to other thread!
-	int                   __batch_num;            // how many position will be distributed to each thread!
-	int 		          __total_threads;
-	std::map<std::thread::id, TaskInfo>  	      __live_tasks;
-};
-
-// TODO: 将extract_data函数的一部分代码粘贴到thread_function函数中 ...
-class ThreadPool
-{
-public:
-	ThreadPool(TaskCoordinator& coor) : __coordinator(coor)
-	{
-#if (DEBUG_TREAD==1)
-		int thread_num = 1;
-#else
-		int thread_num = coor.get_total_threads();
-#endif    			
-		__threads.resize(thread_num);
-	}
-	~ThreadPool()
-	{
-		for (auto it = __threads.begin(); it != __threads.end(); ++it)
-		{
-			delete (*it);
-			*it = nullptr;
-		}
-	}
-	ThreadPool() = delete;
-
-public:
-	void start_all()
-	{
-		for (auto it = __threads.begin(); it != __threads.end(); it++)
-		{
-			(*it) = new std::thread(ThreadPool::thread_function, &__coordinator);
-			(*it) -> join();
-		}
-		cout << "[Debug] created " << __threads.size() << " threads ..." << endl;
-		return;
-	}
-
-/* 	void join_all_threads()
-	{
-		for (auto it = __threads.begin(); it != __threads.end(); it++)
-		{
-			// wait, let the thread which calling this function wait untill all those threads quit ...
-			(*it)->join();
-		}
-		cout << "[Debug] join all threads" << endl;
-		return;
-	} */
-
-protected:
-	static void thread_function(TaskCoordinator *pcoordinator)
-	{
-		TaskCoordinator& coordinator = *pcoordinator;
-		TaskInfo info;
-
-		for (; coordinator.QueryTask(info, std::this_thread::get_id());)
-		{
-			// cout << info << endl;
-			vector<string>::iterator it = (*(info.posinfos)).begin() + info.cursor_from;
-			for (int _i = info.cursor_from;_i <= info.cursor_to; ++it, ++_i)
-			{
-				if (!(info.rt->push_line(*it, *(info.mbr))))
-					continue;
-			}
-		}
-
-	}
-
-protected:
-	vector<std::thread*> __threads;
-	TaskCoordinator&     __coordinator;
-};
-
-
 bool extract_data(const char *input_file,
 				  const char *output_file,
-				  MBR		 &mbr,
+				  MBR	&mbr,
 				  const char *debug_file1,
 				  const char *debug_file2,
 				  string     &output_desc_file
 )
 {	
 	ifstream is(input_file);
+
 	if (!is.is_open())
 	{
 		cerr << "[Error]: fail to open source file:" << input_file << endl;
 		return false;
 	}
+
 	int iall_record = estimate_record_num(is);
 	char buffer[BUFFER_SIZE];
+	double longitude, latitude;
 	vector<std::string> ps;
-	// 分配足够的空间
-	ps.reserve(iall_record * 5);
+	//分配足够的空间
+	ps.reserve(iall_record * 1.2);
 
-	// 1. read data to memory
+	// 1. try to estimate positioning data number
 	cout << "---------------------------------" << endl;
-	cout << "Now read data to memory ..."       << endl;
+	cout << "Now read data to memory ..." << endl;
 	cout << "---------------------------------" << endl;
 	process_notify notify0(10); // each 5% gives a notification
 	int _i(0);
@@ -953,28 +782,23 @@ bool extract_data(const char *input_file,
 
 	// 2. generate record using each lines' information
 	RecordTree vessel_hash_table;
+	vector<string>::iterator iter_ps = ps.begin();
+	process_notify notify1(5);
+	_i = 0;
 	cout << "---------------------------------" << endl;
 	cout << "Now create line instances ..."     << endl;
 	cout << "---------------------------------" << endl;
-
-	// 仅仅采用多线程执行下面这段代码 ...
-	/*vector<string>::iterator iter_ps = ps.begin();
 	for(; iter_ps != ps.end(); iter_ps++)
 	{
 		if (!vessel_hash_table.push_line(*iter_ps, mbr))
 			continue;
-	}*/
-
-	TaskCoordinator coor;
-	coor.init(&ps,
-			  &vessel_hash_table,
-			  &mbr
-	);
-	ThreadPool pool(coor);
-	pool.start_all();
-	// pool.join_all_threads();
-
-	cout << "All " << vessel_hash_table.datamap_size() << " MMSIs types" << " have been read" << endl;
+		else
+		{
+			++_i;
+			notify1.push(_i * 100 / iall_record, "Progress of reading  ");
+		}
+	}
+	cout << "All " << vessel_hash_table.datamap_size() << " have been read" << endl;
 
 	// 3. sort and ouput data to debug file to check it
 	vessel_hash_table._sort();
