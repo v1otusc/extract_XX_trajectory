@@ -305,6 +305,11 @@ map<string, int> vessel_running_dictionary = {
 	{"power-driven vessel towing astern", VESSEL_STOP},
 	{"power-driven vessel pushing ahead or towing alongside", VESSEL_STOP}};
 
+struct POS
+{
+	
+};
+
 class MBR
 {
 public:
@@ -390,7 +395,7 @@ inline long estimate_record_num(istream &is)
 	}
 	int size1 = is.tellg();
 	int iall = file_size / size1 * i;
-	cout << "Total about " << iall << " records ..." << endl;
+	cout << "[OK] Total about " << iall << " records ..." << endl;
 	// --- now estimate the mbr -------------------------
 	is.clear();
 	is.seekg(0, ios::beg);
@@ -423,7 +428,7 @@ public:
 	string to_res();	
 	friend class RecordTree;
 
-protected:
+public:
 	int MMSI;
 	time_t time_second;
 	float longti;
@@ -541,11 +546,13 @@ public:
 	// -- sort every vector, do NOT call it outside the class ------------
 	void _sort();
 	static bool compare_key(VesselPos&, VesselPos&);
-protected:
+
+public:
 	int fsm;
 	MBR mbr;
 	map<int, vector<VesselPos>> data_map;
 	int interpolated_points_num = 0;
+	vector<int>* mmsi;
 };
 
 RecordTree::RecordTree():fsm(FSM_STATE_VESSEL_STOP) {}
@@ -630,15 +637,14 @@ void RecordTree::interpolate_and_output(const char* output_file)
 {
 	cout << "[Debug] starting to interpolate positioning data and save to file ..." << endl;
 	interpolated_points_num = 0;
-	map<int, vector<VesselPos> >::iterator iter = data_map.begin();
 	ofstream os(output_file);
-
 	if (!os.is_open())
 	{
 		cerr << "[Error] fail to open file and interpolate ..." << endl;
 		return;
 	}
 
+	map<int, vector<VesselPos> >::iterator iter = data_map.begin();
 	for(; iter != data_map.end(); iter++)
 	{
 		vector<VesselPos> pos_vector = iter->second;
@@ -687,9 +693,7 @@ bool RecordTree::compare_key(VesselPos& p1, VesselPos& p2)
 
 void RecordTree::_sort()
 {
-	cout << "---------------------------------" << endl;
 	cout << "Now sorting ..." << endl;
-	cout << "---------------------------------" << endl;
 	int i = 0;
 	map<int, vector<VesselPos>>::iterator iter = data_map.begin();
 	
@@ -701,7 +705,7 @@ void RecordTree::_sort()
 		i += pos_vector.size();
 	}
 
-	cout << "All " << i << " lines" << " have been sorted."<< endl;
+	cout << "[OK] All " << i << " lines" << " have been sorted."<< endl;
 	return;
 }
 
@@ -735,20 +739,17 @@ int RecordTree::datamap_size()
 	return data_map.size();
 }
 
-// TODO: 显示任务信息
 struct TaskInfo
 {
-	friend ostream& operator <<(ostream& os, const TaskInfo& info)
+    friend ostream& operator <<(ostream& os, const TaskInfo& info)
 	{
-		return (os << "ThreadID: " << info.id << ", [" << info.cursor_from << "," << info.cursor_to << "] ");
+		return (os << "ThreadID: " << info.id);
 	}
 public:
 	std::thread::id      id;
-	vector<string>*      posinfos;
-	RecordTree*  	     rt;                   // used to extract data
-	MBR*                 mbr;
-	int                  cursor_from;          // pos --- subscriber from  
-	int                  cursor_to;            // pos --- subscribe  to    
+	RecordTree*  	     rt; 
+	vector<int>*         mmsi;
+	int                  cursor;	// cursor of mmsi
 };
 
 class mutex_locker
@@ -767,7 +768,6 @@ protected:
 	std::mutex&  _locker;
 };
 
-// TODO: 
 //--------------------------------------------------------------------------------------------------------------------
 //   class TaskCoordinator is dedicatedly designed for coordinate resource control during multi-thread interpolate
 //   this class won't activate any thread, and it is just be called by threads stored in threadpool
@@ -779,45 +779,30 @@ public:
 	// please be aware that, we will do some optimization on block size, so the parameter set could be changed during
 	// optimization                 
 	//----------------------------------------------------------------------------------------------------------------
-	TaskCoordinator()
-	{
-		__total_threads = get_CPU_core_num(); // get_CPU_core_num() * 2;
-		__cursor = 0;
-	}
+	TaskCoordinator():__total_threads(4),__cursor(0) {}
 
-	void init(vector<string>* posinfos,
-			  RecordTree*     rt,
-			  MBR*            mbr,
-			  const int       batch_num = 200)
+	void init(RecordTree* rt, vector<int>* mmsi)
 	{
-		__posinfos = posinfos;
 		__rt = rt;
-		__mbr = mbr;
-		__batch_num = batch_num;
-		__cursor = 0;
+		__mmsi = mmsi;
+		cout << "initial done!" << endl;
 	}
 
 	bool QueryTask(TaskInfo& info, const std::thread::id &thread_id)   //interface for thread, if no task, return false!
 	{
 		mutex_locker m_locker(__locker);
 		// if we have processed all data, quit!
-		int iall = __posinfos->size();
-		if (this->__cursor == iall)
+		int iall = __rt -> data_map.size();
+		if (__cursor == iall)
 		{
 			__live_tasks.erase(thread_id);
 			return false;
 		}
-
-		info.posinfos = __posinfos;
 		info.rt = __rt;
-		info.mbr = __mbr;
-		info.cursor_from = __cursor;
-		// 防止越界
-		info.cursor_to = (std::min<int>)(__cursor + __batch_num, iall-1);
-		__cursor = info.cursor_to + 1;
+		info.mmsi = __mmsi;
+		info.cursor = __cursor;
+		__cursor++;
 		__live_tasks[thread_id] = info;
-		// set something for the next call of QueryTask(...)
-		// __notify.push(100.0*__cursor / (iall));
 		return true;
 	}
 
@@ -828,16 +813,13 @@ public:
 
 protected:
 	std::mutex            __locker;
-	vector<string>*       __posinfos;             // pos vector
 	RecordTree*   		  __rt;
-	MBR*                  __mbr;
-	long                  __cursor;               // start from this position, the previous have been assigned to other thread!
-	int                   __batch_num;            // how many position will be distributed to each thread!
+	vector<int>*		  __mmsi;
+	int                   __cursor;
 	int 		          __total_threads;
 	std::map<std::thread::id, TaskInfo>  	      __live_tasks;
 };
 
-// TODO: 将extract_data函数的一部分代码粘贴到thread_function函数中 ...
 class ThreadPool
 {
 public:
@@ -855,7 +837,7 @@ public:
 		for (auto it = __threads.begin(); it != __threads.end(); ++it)
 		{
 			delete (*it);
-			*it = nullptr;
+			*it = NULL;
 		}
 	}
 	ThreadPool() = delete;
@@ -865,39 +847,84 @@ public:
 	{
 		for (auto it = __threads.begin(); it != __threads.end(); it++)
 		{
+
 			(*it) = new std::thread(ThreadPool::thread_function, &__coordinator);
-			(*it) -> join();
 		}
 		cout << "[Debug] created " << __threads.size() << " threads ..." << endl;
 		return;
 	}
 
-/* 	void join_all_threads()
+ 	void join_all_threads()
 	{
 		for (auto it = __threads.begin(); it != __threads.end(); it++)
 		{
 			// wait, let the thread which calling this function wait untill all those threads quit ...
-			(*it)->join();
+			(*it) -> join();
 		}
-		cout << "[Debug] join all threads" << endl;
 		return;
-	} */
+	}
 
 protected:
 	static void thread_function(TaskCoordinator *pcoordinator)
 	{
+		cout << "ThreadID [" << std::this_thread::get_id() << "] activated" << endl; 
 		TaskCoordinator& coordinator = *pcoordinator;
 		TaskInfo info;
-
-		for (; coordinator.QueryTask(info, std::this_thread::get_id());)
+		
+		for (; coordinator.QueryTask(info, std::this_thread::get_id()) ;)
 		{
-			// cout << info << endl;
-			vector<string>::iterator it = (*(info.posinfos)).begin() + info.cursor_from;
-			for (int _i = info.cursor_from;_i <= info.cursor_to; ++it, ++_i)
+			vector<VesselPos>& vp = (info.rt)-> data_map[(*info.mmsi)[info.cursor]];
+			vector<VesselPos> pos_vector = (info.rt)-> data_map[(*info.mmsi)[info.cursor]];
+			const int map_size = pos_vector.size();
+			vector<VesselPos> new_list;
+			int fsm = 0;
+			if (map_size > 0)
 			{
-				if (!(info.rt->push_line(*it, *(info.mbr))))
-					continue;
+				new_list.push_back(pos_vector[0]);
+				fsm = pos_vector[0].status;
+				// mbr.update(pos_vector[0].longti, pos_vector[0].lanti);
 			}
+			for (size_t i = 1; i < map_size; i++)
+			{
+				// mbr.update(pos_vector[i].longti, pos_vector[i].lanti);
+				// 上一个点静止
+				if (fsm == 0)
+				{
+					// 点静止
+					if (pos_vector[i].status == 0)
+						// discard this point, two connected stop points
+						continue;
+					else
+					// 点运动，keep it, need do nothing
+					{
+						pos_vector[i].time_diff = int((vp[i].time_second - pos_vector[i - 1].time_second) / 2);
+						new_list.push_back(pos_vector[i]);
+						fsm = 1;
+						continue;
+					}
+				}
+				// 上一个点运动
+				else if (fsm == 1)
+				{
+					// 点静止
+					if (pos_vector[i].status == 0)
+					{
+						fsm = 0;
+						pos_vector[i].time_diff = int((pos_vector[i].time_second - pos_vector[i - 1].time_second) / 2);
+					}
+
+					else
+					// 点运动
+					{
+						pos_vector[i].time_diff = pos_vector[i].time_second - pos_vector[i - 1].time_second;
+					}
+					new_list.push_back(pos_vector[i]);
+				}
+				else
+					cout << "[Error] Never should be here! Bad logic!" << endl;
+			}
+			pos_vector.clear();
+			vp = new_list;
 		}
 
 	}
@@ -906,7 +933,6 @@ protected:
 	vector<std::thread*> __threads;
 	TaskCoordinator&     __coordinator;
 };
-
 
 bool extract_data(const char *input_file,
 				  const char *output_file,
@@ -929,66 +955,55 @@ bool extract_data(const char *input_file,
 	ps.reserve(iall_record * 5);
 
 	// 1. read data to memory
-	cout << "---------------------------------" << endl;
 	cout << "Now read data to memory ..."       << endl;
-	cout << "---------------------------------" << endl;
-	process_notify notify0(10); // each 5% gives a notification
-	int _i(0);
 	
 	while (is.getline(buffer, BUFFER_SIZE - 2))
 	{
 		if (is.fail())
 		{
 			cerr << "[Error]: Error! When execute reading progress " << endl;
-			// is.clear();
 			return false;
 		}
-
 		ps.push_back(buffer);
-		++_i;
-		notify0.push(_i*100 / iall_record, "Progress of loading  ");
-		memset(buffer,'\0',sizeof(buffer));
 	}
-	cout << "All " << ps.size() << " have been launched" << endl;
+	cout << "[OK] All " << ps.size() << " have been launched" << endl;
 
 	// 2. generate record using each lines' information
 	RecordTree vessel_hash_table;
-	cout << "---------------------------------" << endl;
 	cout << "Now create line instances ..."     << endl;
-	cout << "---------------------------------" << endl;
 
-	// 仅仅采用多线程执行下面这段代码 ...
-	/*vector<string>::iterator iter_ps = ps.begin();
+   	vector<string>::iterator iter_ps = ps.begin();
 	for(; iter_ps != ps.end(); iter_ps++)
 	{
 		if (!vessel_hash_table.push_line(*iter_ps, mbr))
 			continue;
-	}*/
+	} 
 
-	TaskCoordinator coor;
-	coor.init(&ps,
-			  &vessel_hash_table,
-			  &mbr
-	);
-	ThreadPool pool(coor);
-	pool.start_all();
-	// pool.join_all_threads();
-
-	cout << "All " << vessel_hash_table.datamap_size() << " MMSIs types" << " have been read" << endl;
+	cout << "[OK] All " << vessel_hash_table.datamap_size() << " MMSIs types" << " have been read" << endl;
 
 	// 3. sort and ouput data to debug file to check it
 	vessel_hash_table._sort();
 	vessel_hash_table.dump(debug_file1);
 
+	vector<int> hash_table_mmsi;
+
+	map<int, vector<VesselPos>>::iterator iter = vessel_hash_table.data_map.begin();
+	for (; iter != (vessel_hash_table.data_map.end()); iter++)
+		hash_table_mmsi.push_back(iter->first);
+
 	// 4. filter out repeat stop point, and interpolate points
-	vessel_hash_table.filter_and_replace_positions();
+	// vessel_hash_table.filter_and_replace_positions();
+   	TaskCoordinator coor;
+	coor.init(&vessel_hash_table, &hash_table_mmsi);
+	ThreadPool pool(coor);
+	pool.start_all();
+	pool.join_all_threads();
+
 	vessel_hash_table.dump(debug_file2);
 	vessel_hash_table.interpolate_and_output(output_file);
-
 	// 5. write to description file
-	cout << "---------------------------------" << endl;
 	cout << "Now write to description file ..." << endl;
-	cout << "---------------------------------" << endl;
+
 	string str_boundary = "";
 	string str_record = "";
 
@@ -1069,7 +1084,7 @@ int main(int argc, char const *argv[])
 /* 	if (argc == 6)
 	{ */
 	float _mbr[4];
-	// TODO: 将double转换为float时会出现精度缺失问题，除了自己写个模板，试图寻找其他解决方法中 ...
+	// TODO: 将double转换为float时会出现精度缺失.
 	_mbr[0] = atof(argv[2]);
 	_mbr[1] = atof(argv[3]);
 	_mbr[2] = atof(argv[4]);
@@ -1078,7 +1093,7 @@ int main(int argc, char const *argv[])
 	MBR user_cut_mbr(_mbr);
 	/* 	}  */
 
-	cout << "Now open" << output_xy_file << " for reading data ... " << endl;
+	cout << "Now open " << output_xy_file << " for reading data ... " << endl;
 
 	if (!extract_data(input_longtilanti_file,
 					  static_cast<const char *>(output_xy_file.c_str()),
@@ -1092,7 +1107,7 @@ int main(int argc, char const *argv[])
 		return -1;
 	}
 	else
-		cout << "[Congratulations!!!] Successfully tranferred to file " << output_xy_file << endl;
+		cout << "[OK] Successfully tranferred to file " << output_xy_file << endl;
 
 	return 0;
 }

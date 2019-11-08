@@ -1,5 +1,5 @@
-#ifndef NOTIFY_H
-#define NOTIFY_H
+#ifndef NOTIFY_H_
+#define NOTIFY_H_
 
 #include <iostream>
 #include <string>
@@ -32,4 +32,4 @@ protected:
 	int __step;
 };
 
-#endif
+#endif	//NOTIFY_H_

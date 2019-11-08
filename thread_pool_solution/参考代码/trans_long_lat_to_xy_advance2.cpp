@@ -247,6 +247,7 @@ protected:
 		x = x - dx;
 		y = dy - y;				//地图翻转，适应屏幕坐标
 	}
+	
 	void LongLatFromMapXY(double &fLong, double &fLat, const double x, const double y) const
 	{
 		//1. From Map XY to Geographical Coordinate
@@ -612,7 +613,6 @@ protected:
 //   if you want to debug, you can enforce the thread number = 1
 //
 //---------------------------------------------------------------------------------------------------------------------------------------
-
 class thread_pool
 {
 public:
@@ -745,7 +745,7 @@ bool transfer(const char* input_longlat_file,
 	)
 {
 	const char* separator = ", \t";
-
+	
 	ifstream is(input_longlat_file);
 	ofstream os(output_xy_file);
 	if (!is.is_open())
