@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++11",
+            "intelliSenseMode": "clang-x64",
+            "compileCommands": "${workspaceFolder}/thread_pool_solution/extract_data_interpolate_only_tank_in_certain_area/build/compile_commands.json"
+        }
+    ],
+    "version": 4
+}

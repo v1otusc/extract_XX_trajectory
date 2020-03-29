@@ -1,0 +1,6 @@
+[Source file]: zone.txt
+[Destination file]: zone_long_lat.txt
+[Extracted fields]: 
+
+
+The recommended L0  = 0

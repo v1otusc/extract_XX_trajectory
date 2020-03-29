@@ -1,0 +1,12 @@
+[
+{
+  "directory": "/home/v1otusc/extract_XX_trajectory/thread_pool_solution/extract_data_interpolate_only_tank_in_certain_area/build",
+  "command": "/usr/bin/g++-7    -g   -std=gnu++11 -o CMakeFiles/extract.dir/Timer.cpp.o -c /home/v1otusc/extract_XX_trajectory/thread_pool_solution/extract_data_interpolate_only_tank_in_certain_area/Timer.cpp",
+  "file": "/home/v1otusc/extract_XX_trajectory/thread_pool_solution/extract_data_interpolate_only_tank_in_certain_area/Timer.cpp"
+},
+{
+  "directory": "/home/v1otusc/extract_XX_trajectory/thread_pool_solution/extract_data_interpolate_only_tank_in_certain_area/build",
+  "command": "/usr/bin/g++-7    -g   -std=gnu++11 -o CMakeFiles/extract.dir/main.cpp.o -c /home/v1otusc/extract_XX_trajectory/thread_pool_solution/extract_data_interpolate_only_tank_in_certain_area/main.cpp",
+  "file": "/home/v1otusc/extract_XX_trajectory/thread_pool_solution/extract_data_interpolate_only_tank_in_certain_area/main.cpp"
+}
+]
